@@ -323,7 +323,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
 
         if not math.isfinite(loss.item()):
             print(f"[{datetime.datetime.now()}]:")
-            print(f"Loss is {}, stopping training".format(loss.item()), force=True)
+            print("Loss is {}, stopping training".format(loss.item()), force=True)
             sys.exit(1)
 
         # student update
