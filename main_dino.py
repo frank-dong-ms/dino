@@ -469,4 +469,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    
+    import urllib.request
+    import tarfile
+
+    print('start download data...')
+    urllib.request.urlretrieve("https://image-net.org/data/ILSVRC/2017/ILSVRC2017_DET.tar.gz", 'imagenet2017.tar.gz')
+    print('finish download imagenet data..')
+    print('start decompress imagenet data...')
+    file = tarfile.open('imagenet2017.tar.gz')
+    file.extractall(f'./imagenet')
+    file.close()
+    print('finish decompress imagenet data...')
+    
     train_dino(args)
