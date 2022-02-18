@@ -132,7 +132,8 @@ def get_args_parser():
 def train_dino(args):
     utils.init_distributed_mode(args)
     utils.fix_random_seeds(args.seed)
-    print(f"[{datetime.datetime.now()}]: git:\n  {}\n".format(utils.get_sha()))
+    print(f"[{datetime.datetime.now()}]:")
+    print("git:\n  {}\n".format(utils.get_sha()))
     print("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items())))
     cudnn.benchmark = True
 
