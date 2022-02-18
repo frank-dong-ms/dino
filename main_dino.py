@@ -296,7 +296,8 @@ def train_dino(args):
                 f.write(json.dumps(log_stats) + "\n")
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('[{datetime.datetime.now()}]: Training time {}'.format(total_time_str))
+    print(f"[{datetime.datetime.now()}]:")
+    print('Training time {}'.format(total_time_str))
 
 
 def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loader,
@@ -321,7 +322,8 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
             loss = dino_loss(student_output, teacher_output, epoch)
 
         if not math.isfinite(loss.item()):
-            print(f"[{datetime.datetime.now()}]: Loss is {}, stopping training".format(loss.item()), force=True)
+            print(f"[{datetime.datetime.now()}]:")
+            print(f"Loss is {}, stopping training".format(loss.item()), force=True)
             sys.exit(1)
 
         # student update
