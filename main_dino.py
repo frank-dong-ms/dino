@@ -132,7 +132,7 @@ def get_args_parser():
 def train_dino(args):
     utils.init_distributed_mode(args)
     utils.fix_random_seeds(args.seed)
-    print("git:\n  {}\n".format(utils.get_sha()))
+    print(f"[{datetime.datetime.now()}]: git:\n  {}\n".format(utils.get_sha()))
     print("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items())))
     cudnn.benchmark = True
 
@@ -152,7 +152,7 @@ def train_dino(args):
         pin_memory=True,
         drop_last=True,
     )
-    print(f"Data loaded: there are {len(dataset)} images.")
+    print(f"[{datetime.datetime.now()}]: Data loaded: there are {len(dataset)} images.")
 
     # ============ building student and teacher networks ... ============
     # we changed the name DeiT-S for ViT-S to avoid confusions
@@ -209,7 +209,7 @@ def train_dino(args):
     # there is no backpropagation through the teacher, so no need for gradients
     for p in teacher.parameters():
         p.requires_grad = False
-    print(f"Student and Teacher are built: they are both {args.arch} network.")
+    print(f"[{datetime.datetime.now()}]: Student and Teacher are built: they are both {args.arch} network.")
 
     # ============ preparing loss ... ============
     dino_loss = DINOLoss(
@@ -249,7 +249,7 @@ def train_dino(args):
     # momentum parameter is increased to 1. during training with a cosine schedule
     momentum_schedule = utils.cosine_scheduler(args.momentum_teacher, 1,
                                                args.epochs, len(data_loader))
-    print(f"Loss, optimizer and schedulers ready.")
+    print(f"[{datetime.datetime.now()}]: Loss, optimizer and schedulers ready.")
 
     # ============ optionally resume training ... ============
     to_restore = {"epoch": 0}
@@ -265,7 +265,7 @@ def train_dino(args):
     start_epoch = to_restore["epoch"]
 
     start_time = time.time()
-    print("Starting DINO training !")
+    print("[{datetime.datetime.now()}]: Starting DINO training !")
     for epoch in range(start_epoch, args.epochs):
         data_loader.sampler.set_epoch(epoch)
 
@@ -295,7 +295,7 @@ def train_dino(args):
                 f.write(json.dumps(log_stats) + "\n")
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
+    print('[{datetime.datetime.now()}]: Training time {}'.format(total_time_str))
 
 
 def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loader,
@@ -320,7 +320,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
             loss = dino_loss(student_output, teacher_output, epoch)
 
         if not math.isfinite(loss.item()):
-            print("Loss is {}, stopping training".format(loss.item()), force=True)
+            print(f"[{datetime.datetime.now()}]: Loss is {}, stopping training".format(loss.item()), force=True)
             sys.exit(1)
 
         # student update
@@ -356,7 +356,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
         metric_logger.update(wd=optimizer.param_groups[0]["weight_decay"])
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
-    print("Averaged stats:", metric_logger)
+    print(f"[{datetime.datetime.now()}]: Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
@@ -465,6 +465,7 @@ class DataAugmentationDINO(object):
 
 
 if __name__ == '__main__':
+    print(f'[{datetime.datetime.now()}]: start dino...')
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
