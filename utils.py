@@ -480,7 +480,9 @@ def init_distributed_mode(args):
     # launched with torch.distributed.launch
     if 'OMPI_COMM_WORLD_RANK' in os.environ and 'OMPI_COMM_WORLD_SIZE' in os.environ:
         os.environ["RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
+        args.rank = int(os.environ["RANK"])
         os.environ["WORLD_SIZE"] = os.environ['OMPI_COMM_WORLD_SIZE']
+        args.world_size = int(os.environ['WORLD_SIZE'])
         args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
         os.environ['MASTER_ADDR'] = os.environ.get('MASTER_IP')
         os.environ["LOCAL_RANK"] = os.environ['OMPI_COMM_WORLD_LOCAL_RANK']
