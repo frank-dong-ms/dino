@@ -491,12 +491,13 @@ def init_distributed_mode(args):
     elif torch.cuda.is_available():
         print('Will run the code on one GPU.')
         args.rank, args.gpu, args.world_size = 0, 0, 1
-        os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29500'
+        os.environ['MASTER_ADDR'] = os.environ.get('MASTER_IP')
+        #os.environ['MASTER_PORT'] = '29500'
     else:
         print('Does not support training without GPU.')
         sys.exit(1)
 
+    print(f'init_process_group with world size: {args.world_size} and rank: {args.rank}.')
     dist.init_process_group(
         backend="nccl",
         init_method=args.dist_url,
