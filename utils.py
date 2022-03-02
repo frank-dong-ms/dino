@@ -479,9 +479,11 @@ def setup_for_distributed(is_master):
 def init_distributed_mode(args):
     # launched with torch.distributed.launch
     if 'OMPI_COMM_WORLD_RANK' in os.environ and 'OMPI_COMM_WORLD_SIZE' in os.environ:
-        args.rank = int(os.environ["OMPI_COMM_WORLD_RANK"])
-        args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
-        args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+        os.environ["RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
+        os.environ["WORLD_SIZE"] = os.environ['OMPI_COMM_WORLD_SIZE']
+        args.gpu = os.environ['OMPI_COMM_WORLD_LOCAL_RANK']
+        os.environ['MASTER_ADDR'] = os.environ.get('MASTER_IP')
+        os.environ["LOCAL_RANK"] = os.environ['OMPI_COMM_WORLD_LOCAL_RANK']
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         args.rank = int(os.environ['SLURM_PROCID'])
@@ -499,10 +501,7 @@ def init_distributed_mode(args):
 
     print(f'init_process_group with world size: {args.world_size} and rank: {args.rank}.')
     dist.init_process_group(
-        backend="nccl",
-        init_method=args.dist_url,
-        world_size=args.world_size,
-        rank=args.rank,
+        backend="nccl"
     )
 
     torch.cuda.set_device(args.gpu)
