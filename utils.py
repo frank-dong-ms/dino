@@ -481,7 +481,7 @@ def init_distributed_mode(args):
     if 'OMPI_COMM_WORLD_RANK' in os.environ and 'OMPI_COMM_WORLD_SIZE' in os.environ:
         os.environ["RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
         os.environ["WORLD_SIZE"] = os.environ['OMPI_COMM_WORLD_SIZE']
-        args.gpu = os.environ['OMPI_COMM_WORLD_LOCAL_RANK']
+        args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
         os.environ['MASTER_ADDR'] = os.environ.get('MASTER_IP')
         os.environ["LOCAL_RANK"] = os.environ['OMPI_COMM_WORLD_LOCAL_RANK']
     # launched with submitit on a slurm cluster
