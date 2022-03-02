@@ -469,6 +469,10 @@ class DataAugmentationDINO(object):
 
 if __name__ == '__main__':
     print(f'[{datetime.datetime.now()}]: start dino...')
+    
+    import sccl
+    sccl.init('ndv4', 2, (sccl.Collective.alltoall, '1GB'))
+    
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
