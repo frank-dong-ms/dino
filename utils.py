@@ -478,10 +478,10 @@ def setup_for_distributed(is_master):
 
 def init_distributed_mode(args):
     # launched with torch.distributed.launch
-    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
+    if 'OMPI_COMM_WORLD_RANK' in os.environ and 'OMPI_COMM_WORLD_SIZE' in os.environ:
+        args.rank = int(os.environ["OMPI_COMM_WORLD_RANK"])
+        args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
+        args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         args.rank = int(os.environ['SLURM_PROCID'])
