@@ -58,6 +58,8 @@ def get_args_parser():
         help="""Whether or not to weight normalize the last layer of the DINO head.
         Not normalizing leads to better performance but can make the training unstable.
         In our experiments, we typically set this paramater to False with vit_small and True with vit_base.""")
+    parser.add_argument('--use_sccl', default=False, type=utils.bool_flag,
+        help="""Whether or not to use sccl to accelerate the training.""")
     parser.add_argument('--momentum_teacher', default=0.996, type=float, help="""Base EMA
         parameter for teacher update. The value is increased to 1 during training with cosine schedule.
         We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256.""")
@@ -469,11 +471,12 @@ class DataAugmentationDINO(object):
 
 if __name__ == '__main__':
     print(f'[{datetime.datetime.now()}]: start dino...')
-    
-    import sccl
-    sccl.init('ndv4', 8, (sccl.Collective.alltoall, '1GB'))
-    
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    
+    if args.use_sccl:
+        import sccl
+        sccl.init('ndv4', 8, (sccl.Collective.alltoall, '1GB'))
+    
     train_dino(args)
