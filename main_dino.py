@@ -477,6 +477,6 @@ if __name__ == '__main__':
     
     if args.use_sccl:
         import sccl
-        sccl.init('ndv4', 2, (sccl.Collective.alltoall, (0, None)))
+        sccl.init('ndv4', 8, (sccl.Collective.alltoall, (0, None)))
     
     train_dino(args)
