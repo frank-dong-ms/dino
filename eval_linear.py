@@ -77,7 +77,7 @@ def eval_linear(args):
     )
 
     if args.evaluate:
-        #utils.load_pretrained_linear_weights(args.pretrained_weights,linear_classifier,args.checkpoint_key, args.arch, args.patch_size)
+        utils.load_pretrained_linear_weights(args.pretrained_weights,linear_classifier,args.checkpoint_key, args.arch, args.patch_size)
         test_stats = validate_network(val_loader, model, linear_classifier, args.n_last_blocks, args.avgpool_patchtokens)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         return
@@ -110,17 +110,18 @@ def eval_linear(args):
 
     # Optionally resume from a checkpoint
     to_restore = {"epoch": 0, "best_acc": 0.}
-    utils.restart_from_checkpoint(
-        os.path.join(args.output_dir, "checkpoint.pth.tar"),
-        run_variables=to_restore,
-        state_dict=linear_classifier,
-        optimizer=optimizer,
-        scheduler=scheduler,
-    )
+    # utils.restart_from_checkpoint(
+    #     os.path.join(args.output_dir, "checkpoint.pth.tar"),
+    #     run_variables=to_restore,
+    #     state_dict=linear_classifier,
+    #     optimizer=optimizer,
+    #     scheduler=scheduler,
+    # )
     start_epoch = to_restore["epoch"]
     best_acc = to_restore["best_acc"]
 
     for epoch in range(start_epoch, args.epochs):
+        torch.cuda.empty_cache()
         train_loader.sampler.set_epoch(epoch)
 
         train_stats = train(model, linear_classifier, optimizer, train_loader, epoch, args.n_last_blocks, args.avgpool_patchtokens)

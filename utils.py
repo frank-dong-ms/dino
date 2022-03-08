@@ -25,6 +25,8 @@ import random
 import datetime
 import subprocess
 from collections import defaultdict, deque
+from collections import OrderedDict
+
 
 import numpy as np
 import torch
@@ -79,8 +81,10 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
         state_dict = state_dict[checkpoint_key]
     # remove `module.` prefix
     state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        # remove `backbone.` prefix induced by multicrop wrapper
+    # remove `backbone.` prefix induced by multicrop wrapper
     state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
+    # create new OrderedDict that does not contain `module.`
+    print(state_dict)
     msg = model.load_state_dict(state_dict, strict=False)
     print('Pretrained weights found at {} and loaded with msg: {}'.format(pretrained_weights, msg))
     # else:
@@ -127,15 +131,7 @@ def load_pretrained_linear_weights(pretrained_weights,linear_classifier,checkpoi
         url = "dino_resnet50_pretrain/dino_resnet50_linearweights.pth"
     if url is not None:
         print("We load the reference pretrained linear weights.")
-        state_dict = torch.load(pretrained_weights, map_location="cpu")
-        if checkpoint_key is not None and checkpoint_key in state_dict:
-            print(f"Take key {checkpoint_key} in provided checkpoint dict")
-            state_dict = state_dict[checkpoint_key]
-    # remove `module.` prefix
-        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        # remove `backbone.` prefix induced by multicrop wrapper
-        state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
-        #state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url)["state_dict"]
+        state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url)["state_dict"]
         linear_classifier.load_state_dict(state_dict, strict=True)
     else:
         print("We use random linear weights.")
