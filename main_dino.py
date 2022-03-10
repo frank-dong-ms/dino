@@ -477,6 +477,7 @@ if __name__ == '__main__':
     
     if args.use_sccl:
         import sccl
-        sccl.init('ndv4', 8, (sccl.Collective.alltoall, '1GB'))
+        #sccl.init('ndv4', 8, (sccl.Collective.alltoall, '1GB'))
+        sccl.init('ndv4', 1, (sccl.Collective.allreduce, (0, None)))
     
     train_dino(args)
