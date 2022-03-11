@@ -482,6 +482,7 @@ def init_distributed_mode(args):
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ['WORLD_SIZE'])
         args.gpu = int(os.environ['LOCAL_RANK'])
+        print('rank:', os.environ["RANK"], '; world_size:', os.environ['WORLD_SIZE'], '; local_rank:', os.environ['LOCAL_RANK'])
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         args.rank = int(os.environ['SLURM_PROCID'])
@@ -498,7 +499,7 @@ def init_distributed_mode(args):
         sys.exit(1)
 
     dist.init_process_group(
-        backend="nccl",
+        backend="mpi",
         init_method=args.dist_url,
         world_size=args.world_size,
         rank=args.rank,
