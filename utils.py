@@ -503,7 +503,7 @@ def init_distributed_mode(args):
 
     #print(f'init_process_group with world size: {args.world_size} and rank: {args.rank}.')
     dist.init_process_group(
-        backend="nccl"
+        backend="mpi"
     )
 
     torch.cuda.set_device(args.gpu)
