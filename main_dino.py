@@ -269,33 +269,36 @@ def train_dino(args):
 
     start_time = time.time()
     print("[{datetime.datetime.now()}]: Starting DINO training !")
-    for epoch in range(start_epoch, args.epochs):
-        data_loader.sampler.set_epoch(epoch)
+    try:
+        for epoch in range(start_epoch, args.epochs):
+            data_loader.sampler.set_epoch(epoch)
 
-        # ============ training one epoch of DINO ... ============
-        train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
-            data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
-            epoch, fp16_scaler, args)
+            # ============ training one epoch of DINO ... ============
+            train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
+                data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
+                epoch, fp16_scaler, args)
 
-        # ============ writing logs ... ============
-        save_dict = {
-            'student': student.state_dict(),
-            'teacher': teacher.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'epoch': epoch + 1,
-            'args': args,
-            'dino_loss': dino_loss.state_dict(),
-        }
-        if fp16_scaler is not None:
-            save_dict['fp16_scaler'] = fp16_scaler.state_dict()
-        utils.save_on_master(save_dict, os.path.join(args.output_dir, 'checkpoint.pth'))
-        if args.saveckp_freq and epoch % args.saveckp_freq == 0:
-            utils.save_on_master(save_dict, os.path.join(args.output_dir, f'checkpoint{epoch:04}.pth'))
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     'epoch': epoch}
-        if utils.is_main_process():
-            with (Path(args.output_dir) / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+            # ============ writing logs ... ============
+            save_dict = {
+                'student': student.state_dict(),
+                'teacher': teacher.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'epoch': epoch + 1,
+                'args': args,
+                'dino_loss': dino_loss.state_dict(),
+            }
+            if fp16_scaler is not None:
+                save_dict['fp16_scaler'] = fp16_scaler.state_dict()
+            utils.save_on_master(save_dict, os.path.join(args.output_dir, 'checkpoint.pth'))
+            if args.saveckp_freq and epoch % args.saveckp_freq == 0:
+                utils.save_on_master(save_dict, os.path.join(args.output_dir, f'checkpoint{epoch:04}.pth'))
+            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+                         'epoch': epoch}
+            if utils.is_main_process():
+                with (Path(args.output_dir) / "log.txt").open("a") as f:
+                    f.write(json.dumps(log_stats) + "\n")
+    except Exception as e:
+        print("dino training failed with exception:", e)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print(f"[{datetime.datetime.now()}]:")
