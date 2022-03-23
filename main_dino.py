@@ -150,7 +150,6 @@ def get_args_parser():
     # Include DeepSpeed configuration arguments
     parser = deepspeed.add_config_arguments(parser)
 
-    args=parser.parse_args()
     return parser
 
 
@@ -255,14 +254,14 @@ def train_dino(args):
     #     optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
     # elif args.optimizer == "lars":
     #     optimizer = utils.LARS(params_groups)  # to use with convnet and large batches
-    parameters = filter(lambda p: p.requires_grad, student.parameters())
 
     # Initialize DeepSpeed to use the following features
     # 1) Distributed model
     # 2) Distributed data loader
     # 3) DeepSpeed optimizer
+    #model_engine, optimizer, trainloader, _ = deepspeed.initialize(args=args, model=student, model_parameters=params_groups, training_data=dataset)
     model_engine, optimizer, trainloader, _ = deepspeed.initialize(args=args, model=student, model_parameters=params_groups, training_data=dataset)
-    
+
     # for mixed precision training
     fp16_scaler = None
     if args.use_fp16:
@@ -299,7 +298,7 @@ def train_dino(args):
     start_epoch = to_restore["epoch"]
 
     start_time = time.time()
-    print("[{datetime.datetime.now()}]: Starting DINO training !")
+    print(f"[{datetime.datetime.now()}]: Starting DINO training !")
     try:
         for epoch in range(start_epoch, args.epochs):
             data_loader.sampler.set_epoch(epoch)
@@ -341,7 +340,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                     fp16_scaler, args):
     metric_logger = utils.MetricLogger(delimiter="  ")
     from datetime import datetime
-    header = datetime.now() + ' Epoch: [{}/{}]'.format(epoch, args.epochs)
+    header = str(datetime.now()) + ' Epoch: [{}/{}]'.format(epoch, args.epochs)
     for it, (images, _) in enumerate(metric_logger.log_every(data_loader, 10, header)):
         # update weight decay and learning rate according to their schedule
         it = len(data_loader) * epoch + it  # global training iteration
