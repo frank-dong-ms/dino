@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import deepspeed
 import argparse
 import os
 import sys
@@ -128,6 +129,28 @@ def get_args_parser():
     parser.add_argument("--dist_url", default="env://", type=str, help="""url used to set up
         distributed training; see https://pytorch.org/docs/stable/distributed.html""")
     parser.add_argument("--local_rank", default=0, type=int, help="Please ignore and do not set this argument.")
+    
+    
+    # deepspeed related configuration
+    #data
+    #cuda
+    parser.add_argument('--with_cuda', default=True, action='store_true',
+                        help='use CPU in case there\'s no GPU support')
+    parser.add_argument('--use_ema', default=False, action='store_true',
+                        help='whether use exponential moving average')
+
+    # # train
+    # parser.add_argument('-b', '--batch_size', default=32, type=int,
+    #                     help='mini-batch size (default: 32)')
+    # parser.add_argument('-e', '--epochs', default=10, type=int,
+    #                     help='number of total epochs (default: 10)')
+    # parser.add_argument('--local_rank', type=int, default=-1,
+    #                 help='local rank passed from distributed launcher')
+
+    # Include DeepSpeed configuration arguments
+    parser = deepspeed.add_config_arguments(parser)
+
+    args=parser.parse_args()
     return parser
 
 
@@ -226,12 +249,20 @@ def train_dino(args):
 
     # ============ preparing optimizer ... ============
     params_groups = utils.get_params_groups(student)
-    if args.optimizer == "adamw":
-        optimizer = torch.optim.AdamW(params_groups)  # to use with ViTs
-    elif args.optimizer == "sgd":
-        optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
-    elif args.optimizer == "lars":
-        optimizer = utils.LARS(params_groups)  # to use with convnet and large batches
+    # if args.optimizer == "adamw":
+    #     optimizer = torch.optim.AdamW(params_groups)  # to use with ViTs
+    # elif args.optimizer == "sgd":
+    #     optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
+    # elif args.optimizer == "lars":
+    #     optimizer = utils.LARS(params_groups)  # to use with convnet and large batches
+    parameters = filter(lambda p: p.requires_grad, student.parameters())
+
+    # Initialize DeepSpeed to use the following features
+    # 1) Distributed model
+    # 2) Distributed data loader
+    # 3) DeepSpeed optimizer
+    model_engine, optimizer, trainloader, _ = deepspeed.initialize(args=args, model=student, model_parameters=params_groups, training_data=dataset)
+    
     # for mixed precision training
     fp16_scaler = None
     if args.use_fp16:
@@ -259,7 +290,7 @@ def train_dino(args):
     utils.restart_from_checkpoint(
         os.path.join(args.output_dir, "checkpoint.pth"),
         run_variables=to_restore,
-        student=student,
+        student=model_engine,
         teacher=teacher,
         optimizer=optimizer,
         fp16_scaler=fp16_scaler,
@@ -274,13 +305,13 @@ def train_dino(args):
             data_loader.sampler.set_epoch(epoch)
 
             # ============ training one epoch of DINO ... ============
-            train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
+            train_stats = train_one_epoch(model_engine, teacher, teacher_without_ddp, dino_loss,
                 data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
                 epoch, fp16_scaler, args)
 
             # ============ writing logs ... ============
             save_dict = {
-                'student': student.state_dict(),
+                'student': model_engine.state_dict(),
                 'teacher': teacher.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'epoch': epoch + 1,
@@ -333,7 +364,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
             sys.exit(1)
 
         # student update
-        optimizer.zero_grad()
+        #optimizer.zero_grad()
         param_norms = None
         if fp16_scaler is None:
             loss.backward()
