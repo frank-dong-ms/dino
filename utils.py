@@ -479,10 +479,14 @@ def setup_for_distributed(is_master):
 
 def init_distributed_mode(args):
     # launched with torch.distributed.launch
-    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+    if 'OMPI_COMM_WORLD_RANK' in os.environ and 'OMPI_COMM_WORLD_SIZE' in os.environ:
+        os.environ["RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
         args.rank = int(os.environ["RANK"])
+        os.environ["WORLD_SIZE"] = os.environ['OMPI_COMM_WORLD_SIZE']
         args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
+        args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+        os.environ['MASTER_ADDR'] = os.environ.get('MASTER_IP')
+        os.environ["LOCAL_RANK"] = os.environ['OMPI_COMM_WORLD_LOCAL_RANK']
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         args.rank = int(os.environ['SLURM_PROCID'])
@@ -492,8 +496,8 @@ def init_distributed_mode(args):
     elif torch.cuda.is_available():
         print('Will run the code on one GPU.')
         args.rank, args.gpu, args.world_size = 0, 0, 1
-        os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29500'
+        os.environ['MASTER_ADDR'] = os.environ.get('MASTER_IP')
+        #os.environ['MASTER_PORT'] = '29500'
     else:
         print('Does not support training without GPU.')
         sys.exit(1)
