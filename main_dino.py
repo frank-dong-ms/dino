@@ -33,6 +33,7 @@ from torchvision import models as torchvision_models
 import utils
 import vision_transformer as vits
 from vision_transformer import DINOHead
+from torch_ort import ORTModule, DebugOptions, LogLevel
 
 torchvision_archs = sorted(name for name in torchvision_models.__dict__
     if name.islower() and not name.startswith("__")
@@ -193,6 +194,7 @@ def train_dino(args):
         teacher,
         DINOHead(embed_dim, args.out_dim, args.use_bn_in_head),
     )
+    
     # move networks to gpu
     student, teacher = student.cuda(), teacher.cuda()
     # synchronize batch norms (if any)
@@ -254,6 +256,12 @@ def train_dino(args):
                                                args.epochs, len(data_loader))
     print(f"[{datetime.datetime.now()}]: Loss, optimizer and schedulers ready.")
 
+    debug_options = DebugOptions(log_level=LogLevel.VERBOSE, save_onnx=False, onnx_prefix='dino')
+    student = ORTModule(student)
+    teacher = ORTModule(teacher)
+
+    print("finish ort convert of student and teacher ----------------------------------------------")
+
     # ============ optionally resume training ... ============
     to_restore = {"epoch": 0}
     utils.restart_from_checkpoint(
@@ -268,37 +276,38 @@ def train_dino(args):
     start_epoch = to_restore["epoch"]
 
     start_time = time.time()
-    print("[{datetime.datetime.now()}]: Starting DINO training !")
-    try:
-        for epoch in range(start_epoch, args.epochs):
-            data_loader.sampler.set_epoch(epoch)
+    print(f"[{datetime.datetime.now()}]: Starting DINO training !")
+    #try:
+    for epoch in range(start_epoch, args.epochs):
+        data_loader.sampler.set_epoch(epoch)
 
-            # ============ training one epoch of DINO ... ============
-            train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
-                data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
-                epoch, fp16_scaler, args)
+        # ============ training one epoch of DINO ... ============
+        train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
+            data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
+            epoch, fp16_scaler, args)
 
-            # ============ writing logs ... ============
-            save_dict = {
-                'student': student.state_dict(),
-                'teacher': teacher.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'epoch': epoch + 1,
-                'args': args,
-                'dino_loss': dino_loss.state_dict(),
-            }
-            if fp16_scaler is not None:
-                save_dict['fp16_scaler'] = fp16_scaler.state_dict()
-            utils.save_on_master(save_dict, os.path.join(args.output_dir, 'checkpoint.pth'))
-            if args.saveckp_freq and epoch % args.saveckp_freq == 0:
-                utils.save_on_master(save_dict, os.path.join(args.output_dir, f'checkpoint{epoch:04}.pth'))
-            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                         'epoch': epoch}
-            if utils.is_main_process():
-                with (Path(args.output_dir) / "log.txt").open("a") as f:
-                    f.write(json.dumps(log_stats) + "\n")
-    except Exception as e:
-        print("dino training failed with exception:", e)
+        # ============ writing logs ... ============
+        save_dict = {
+            'student': student.state_dict(),
+            'teacher': teacher.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'epoch': epoch + 1,
+            'args': args,
+            'dino_loss': dino_loss.state_dict(),
+        }
+        if fp16_scaler is not None:
+            save_dict['fp16_scaler'] = fp16_scaler.state_dict()
+        utils.save_on_master(save_dict, os.path.join(args.output_dir, 'checkpoint.pth'))
+        if args.saveckp_freq and epoch % args.saveckp_freq == 0:
+            utils.save_on_master(save_dict, os.path.join(args.output_dir, f'checkpoint{epoch:04}.pth'))
+        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+                        'epoch': epoch}
+        if utils.is_main_process():
+            with (Path(args.output_dir) / "log.txt").open("a") as f:
+                f.write(json.dumps(log_stats) + "\n")
+    # except Exception as e:
+    #     print(e)
+    #     print("dino training failed with exception:", e)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print(f"[{datetime.datetime.now()}]:")
@@ -309,8 +318,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                     optimizer, lr_schedule, wd_schedule, momentum_schedule,epoch,
                     fp16_scaler, args):
     metric_logger = utils.MetricLogger(delimiter="  ")
-    from datetime import datetime
-    header = datetime.now() + ' Epoch: [{}/{}]'.format(epoch, args.epochs)
+    header = ' Epoch: [{}/{}]'.format(epoch, args.epochs)
     for it, (images, _) in enumerate(metric_logger.log_every(data_loader, 10, header)):
         # update weight decay and learning rate according to their schedule
         it = len(data_loader) * epoch + it  # global training iteration
