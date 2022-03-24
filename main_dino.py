@@ -90,9 +90,9 @@ def get_args_parser():
     parser.add_argument('--clip_grad', type=float, default=3.0, help="""Maximal parameter
         gradient norm if using gradient clipping. Clipping with norm .3 ~ 1.0 can
         help optimization for larger ViT architectures. 0 for disabling.""")
-    parser.add_argument('--batch_size_per_gpu', default=64, type=int,
-        help='Per-GPU batch-size : number of distinct images loaded on one GPU.')
-    parser.add_argument('--epochs', default=100, type=int, help='Number of epochs of training.')
+    # parser.add_argument('--batch_size_per_gpu', default=64, type=int,
+    #     help='Per-GPU batch-size : number of distinct images loaded on one GPU.')
+    # parser.add_argument('--epochs', default=100, type=int, help='Number of epochs of training.')
     parser.add_argument('--freeze_last_layer', default=1, type=int, help="""Number of epochs
         during which we keep the output layer fixed. Typically doing so during
         the first epoch helps training. Try increasing this value if the loss does not decrease.""")
@@ -140,10 +140,10 @@ def get_args_parser():
                         help='whether use exponential moving average')
 
     # # train
-    # parser.add_argument('-b', '--batch_size', default=32, type=int,
-    #                     help='mini-batch size (default: 32)')
-    # parser.add_argument('-e', '--epochs', default=10, type=int,
-    #                     help='number of total epochs (default: 10)')
+    parser.add_argument('-b', '--batch_size', default=32, type=int,
+                        help='mini-batch size (default: 32)')
+    parser.add_argument('-e', '--epochs', default=10, type=int,
+                        help='number of total epochs (default: 10)')
     # parser.add_argument('--local_rank', type=int, default=-1,
     #                 help='local rank passed from distributed launcher')
 
@@ -172,7 +172,7 @@ def train_dino(args):
     data_loader = torch.utils.data.DataLoader(
         dataset,
         sampler=sampler,
-        batch_size=args.batch_size_per_gpu,
+        batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=True,
         drop_last=True,
@@ -259,7 +259,6 @@ def train_dino(args):
     # 1) Distributed model
     # 2) Distributed data loader
     # 3) DeepSpeed optimizer
-    #model_engine, optimizer, trainloader, _ = deepspeed.initialize(args=args, model=student, model_parameters=params_groups, training_data=dataset)
     model_engine, optimizer, trainloader, _ = deepspeed.initialize(args=args, model=student, model_parameters=params_groups, training_data=dataset)
 
     # for mixed precision training
@@ -269,7 +268,7 @@ def train_dino(args):
 
     # ============ init schedulers ... ============
     lr_schedule = utils.cosine_scheduler(
-        args.lr * (args.batch_size_per_gpu * utils.get_world_size()) / 256.,  # linear scaling rule
+        args.lr * (args.batch_size * utils.get_world_size()) / 256.,  # linear scaling rule
         args.min_lr,
         args.epochs, len(data_loader),
         warmup_epochs=args.warmup_epochs,
