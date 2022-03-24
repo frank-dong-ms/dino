@@ -31,6 +31,7 @@ import torch
 from torch import nn
 import torch.distributed as dist
 from PIL import ImageFilter, ImageOps
+import deepspeed
 
 
 class GaussianBlur(object):
@@ -497,11 +498,15 @@ def init_distributed_mode(args):
         print('Does not support training without GPU.')
         sys.exit(1)
 
-    dist.init_process_group(
-        backend="nccl",
-        init_method=args.dist_url,
-        world_size=args.world_size,
-        rank=args.rank,
+    # dist.init_process_group(
+    #     backend="nccl",
+    #     init_method=args.dist_url,
+    #     world_size=args.world_size,
+    #     rank=args.rank,
+    # )
+
+    deepspeed.init_distributed(
+        dist_backend = "nccl"
     )
 
     torch.cuda.set_device(args.gpu)
