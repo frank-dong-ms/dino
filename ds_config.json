@@ -9,5 +9,6 @@
     "fp16": {
         "enabled": false
     },
-    "wall_clock_breakdown": false
-  }
+    "wall_clock_breakdown": false,
+    "autotuning": {"enabled": true}
+}
