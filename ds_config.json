@@ -1,14 +1,19 @@
 {
-    "autotuning": {"enabled": true},
-    "train_batch_size": 16,
-    "steps_per_print": 10,
-    "optimizer": {
-      "type": "Adam"
-    },
-    "gradient_clipping": 1.0,
-    "prescale_gradients": false,
-    "fp16": {
-        "enabled": false
-    },
-    "wall_clock_breakdown": false
+  "autotuning": {
+    "enabled": true,
+    "arg_mappings": {
+      "train_micro_batch_size_per_gpu": "--batch_size"
+    }
+  },
+  "train_batch_size": 16,
+  "steps_per_print": 10,
+  "optimizer": {
+    "type": "Adam"
+  },
+  "gradient_clipping": 1.0,
+  "prescale_gradients": false,
+  "fp16": {
+    "enabled": false
+  },
+  "wall_clock_breakdown": false
 }
