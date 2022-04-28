@@ -58,8 +58,6 @@ def get_args_parser():
         help="""Whether or not to weight normalize the last layer of the DINO head.
         Not normalizing leads to better performance but can make the training unstable.
         In our experiments, we typically set this paramater to False with vit_small and True with vit_base.""")
-    parser.add_argument('--use_sccl', default=False, type=utils.bool_flag,
-        help="""Whether or not to use sccl to accelerate the training.""")
     parser.add_argument('--momentum_teacher', default=0.996, type=float, help="""Base EMA
         parameter for teacher update. The value is increased to 1 during training with cosine schedule.
         We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256.""")
@@ -134,7 +132,6 @@ def get_args_parser():
 def train_dino(args):
     utils.init_distributed_mode(args)
     utils.fix_random_seeds(args.seed)
-    print(f"[{datetime.datetime.now()}]:")
     print("git:\n  {}\n".format(utils.get_sha()))
     print("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items())))
     cudnn.benchmark = True
@@ -155,10 +152,9 @@ def train_dino(args):
         pin_memory=True,
         drop_last=True,
     )
-    print(f"[{datetime.datetime.now()}]: Data loaded: there are {len(dataset)} images.")
+    print(f"Data loaded: there are {len(dataset)} images.")
     os_values = os.uname()
     print(f"{os_values}")
-
     # ============ building student and teacher networks ... ============
     # we changed the name DeiT-S for ViT-S to avoid confusions
     args.arch = args.arch.replace("deit", "vit")
@@ -214,7 +210,7 @@ def train_dino(args):
     # there is no backpropagation through the teacher, so no need for gradients
     for p in teacher.parameters():
         p.requires_grad = False
-    print(f"[{datetime.datetime.now()}]: Student and Teacher are built: they are both {args.arch} network.")
+    print(f"Student and Teacher are built: they are both {args.arch} network.")
 
     # ============ preparing loss ... ============
     dino_loss = DINOLoss(
@@ -254,7 +250,7 @@ def train_dino(args):
     # momentum parameter is increased to 1. during training with a cosine schedule
     momentum_schedule = utils.cosine_scheduler(args.momentum_teacher, 1,
                                                args.epochs, len(data_loader))
-    print(f"[{datetime.datetime.now()}]: Loss, optimizer and schedulers ready.")
+    print(f"Loss, optimizer and schedulers ready.")
 
     # ============ optionally resume training ... ============
     to_restore = {"epoch": 0}
@@ -270,40 +266,36 @@ def train_dino(args):
     start_epoch = to_restore["epoch"]
 
     start_time = time.time()
-    print("[{datetime.datetime.now()}]: Starting DINO training !")
-    try:
-        for epoch in range(start_epoch, args.epochs):
-            data_loader.sampler.set_epoch(epoch)
+    print("Starting DINO training !")
+    for epoch in range(start_epoch, args.epochs):
+        data_loader.sampler.set_epoch(epoch)
 
-            # ============ training one epoch of DINO ... ============
-            train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
-                data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
-                epoch, fp16_scaler, args)
+        # ============ training one epoch of DINO ... ============
+        train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
+            data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
+            epoch, fp16_scaler, args)
 
-            # ============ writing logs ... ============
-            save_dict = {
-                'student': student.state_dict(),
-                'teacher': teacher.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'epoch': epoch + 1,
-                'args': args,
-                'dino_loss': dino_loss.state_dict(),
-            }
-            if fp16_scaler is not None:
-                save_dict['fp16_scaler'] = fp16_scaler.state_dict()
-            utils.save_on_master(save_dict, os.path.join(args.output_dir, 'checkpoint.pth'))
-            if args.saveckp_freq and epoch % args.saveckp_freq == 0:
-                utils.save_on_master(save_dict, os.path.join(args.output_dir, f'checkpoint{epoch:04}.pth'))
-            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                         'epoch': epoch}
-            if utils.is_main_process():
-                with (Path(args.output_dir) / "log.txt").open("a") as f:
-                    f.write(json.dumps(log_stats) + "\n")
-    except Exception as e:
-        print("dino training failed with exception:", e)
+        # ============ writing logs ... ============
+        save_dict = {
+            'student': student.state_dict(),
+            'teacher': teacher.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'epoch': epoch + 1,
+            'args': args,
+            'dino_loss': dino_loss.state_dict(),
+        }
+        if fp16_scaler is not None:
+            save_dict['fp16_scaler'] = fp16_scaler.state_dict()
+        utils.save_on_master(save_dict, os.path.join(args.output_dir, 'checkpoint.pth'))
+        if args.saveckp_freq and epoch % args.saveckp_freq == 0:
+            utils.save_on_master(save_dict, os.path.join(args.output_dir, f'checkpoint{epoch:04}.pth'))
+        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+                     'epoch': epoch}
+        if utils.is_main_process():
+            with (Path(args.output_dir) / "log.txt").open("a") as f:
+                f.write(json.dumps(log_stats) + "\n")
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print(f"[{datetime.datetime.now()}]:")
     print('Training time {}'.format(total_time_str))
 
 
@@ -311,8 +303,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                     optimizer, lr_schedule, wd_schedule, momentum_schedule,epoch,
                     fp16_scaler, args):
     metric_logger = utils.MetricLogger(delimiter="  ")
-    from datetime import datetime
-    header = datetime.now() + ' Epoch: [{}/{}]'.format(epoch, args.epochs)
+    header = 'Epoch: [{}/{}]'.format(epoch, args.epochs)
     for it, (images, _) in enumerate(metric_logger.log_every(data_loader, 10, header)):
         # update weight decay and learning rate according to their schedule
         it = len(data_loader) * epoch + it  # global training iteration
@@ -330,7 +321,6 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
             loss = dino_loss(student_output, teacher_output, epoch)
 
         if not math.isfinite(loss.item()):
-            print(f"[{datetime.datetime.now()}]:")
             print("Loss is {}, stopping training".format(loss.item()), force=True)
             sys.exit(1)
 
@@ -367,7 +357,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
         metric_logger.update(wd=optimizer.param_groups[0]["weight_decay"])
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
-    print(f"[{datetime.datetime.now()}]: Averaged stats:", metric_logger)
+    print("Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
@@ -476,14 +466,7 @@ class DataAugmentationDINO(object):
 
 
 if __name__ == '__main__':
-    print(f'[{datetime.datetime.now()}]: start dino...')
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    
-    if args.use_sccl:
-        import sccl
-        #sccl.init('ndv4', 8, (sccl.Collective.alltoall, '1GB'))
-        sccl.init('ndv4', 1, (sccl.Collective.allreduce, (0, None)))
-    
     train_dino(args)
