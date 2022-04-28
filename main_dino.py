@@ -156,6 +156,8 @@ def train_dino(args):
         drop_last=True,
     )
     print(f"[{datetime.datetime.now()}]: Data loaded: there are {len(dataset)} images.")
+    os_values = os.uname()
+    print(f"{os_values}")
 
     # ============ building student and teacher networks ... ============
     # we changed the name DeiT-S for ViT-S to avoid confusions
