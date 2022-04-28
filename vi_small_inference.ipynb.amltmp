@@ -1,0 +1,406 @@
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "source": [
+        "import os \r\n",
+        "\r\n",
+        "import azureml.core\r\n",
+        "from azureml.core import Workspace, Dataset, Datastore, Experiment, Environment, ScriptRunConfig\r\n",
+        "from azureml.core.compute import ComputeTarget, AmlCompute\r\n",
+        "from azureml.core.compute_target import ComputeTargetException\r\n",
+        "#from azureml.core.runconfig import PyTorchConfiguration\r\n",
+        "from azureml.core.runconfig import PyTorchConfiguration, DockerConfiguration\r\n",
+        "from azureml.core.conda_dependencies import CondaDependencies\r\n",
+        "\r\n",
+        "from azureml.data import OutputFileDatasetConfig\r\n",
+        "from azureml.telemetry import set_diagnostics_collection\r\n",
+        "\r\n",
+        "from azureml.widgets import RunDetails\r\n",
+        "\r\n",
+        "set_diagnostics_collection(send_diagnostics=True)\r\n",
+        "\r\n",
+        "print(\"SDK version:\", azureml.core.VERSION)"
+      ],
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": "Turning diagnostics collection on. \nSDK version: 1.38.0\n"
+        }
+      ],
+      "execution_count": 1,
+      "metadata": {
+        "gather": {
+          "logged": 1646564069097
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "project_folder = '../dino'\r\n"
+      ],
+      "outputs": [],
+      "execution_count": 2,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564079044
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "ws = Workspace.from_config()\r\n",
+        "datastore = ws.get_default_datastore()\r\n",
+        "image_net_dataset = Dataset.get_by_name(ws, 'imagenet_2015_premium_west_full')"
+      ],
+      "outputs": [],
+      "execution_count": 8,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564198982
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# choose a name for your cluster\r\n",
+        "cluster_name = 'A100-2'\r\n",
+        "try:\r\n",
+        "    compute_target = ComputeTarget(workspace=ws, name=cluster_name)\r\n",
+        "    print('Found existing compute target.')\r\n",
+        "except ComputeTargetException:\r\n",
+        "    print('Cannot Find the compute cluster')\r\n",
+        "\r\n",
+        "# use get_status() to get a detailed status for the current AmlCompute. \r\n",
+        "print(compute_target.get_status().serialize())"
+      ],
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": "Found existing compute target.\n{'currentNodeCount': 0, 'targetNodeCount': 0, 'nodeStateCounts': {'preparingNodeCount': 0, 'runningNodeCount': 0, 'idleNodeCount': 0, 'unusableNodeCount': 0, 'leavingNodeCount': 0, 'preemptedNodeCount': 0}, 'allocationState': 'Steady', 'allocationStateTransitionTime': '2022-03-06T10:48:22.301000+00:00', 'errors': None, 'creationTime': '2022-03-06T10:48:17.444629+00:00', 'modifiedTime': '2022-03-06T10:48:24.874029+00:00', 'provisioningState': 'Succeeded', 'provisioningStateTransitionTime': None, 'scaleSettings': {'minNodeCount': 0, 'maxNodeCount': 2, 'nodeIdleTimeBeforeScaleDown': 'PT30S'}, 'vmPriority': 'Dedicated', 'vmSize': 'STANDARD_ND96AMSR_A100_V4'}\n"
+        }
+      ],
+      "execution_count": 4,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564119251
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#pytorch_env = Environment.from_conda_specification(name='AzureML-PyTorch-1.6-GPU',file_path='distributed-pytorch-with-distributeddataparallel.yml')\r\n",
+        "curated_env_name = 'AzureML-pytorch-1.10-ubuntu18.04-py38-cuda11-gpu'\r\n",
+        "pytorch_env = Environment.get(workspace=ws, name=curated_env_name)\r\n",
+        "pytorch_env.environment_variables = {\"AZUREML_DOWNLOAD_CONCURRENCY\":384} \r\n",
+        "\r\n",
+        "dino_env = pytorch_env.clone(\"dino_env\")\r\n",
+        "\r\n",
+        "conda = CondaDependencies()\r\n",
+        "\r\n",
+        "# # add pip packages\r\n",
+        "conda.add_pip_package('timm')\r\n",
+        "# # create environment\r\n",
+        "dino_env.python.conda_dependencies = conda\r\n",
+        "docker_config = DockerConfiguration(use_docker=True,shm_size='256g')\r\n",
+        "\r\n",
+        "\r\n"
+      ],
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": "Property environment_variables is deprecated. Use RunConfiguration.environment_variables to set runtime variables.\n"
+        }
+      ],
+      "execution_count": 5,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564138108
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "patch_size = 16\r\n",
+        "batch_size_per_gpu = 64\r\n",
+        "node_count = 1\r\n",
+        "process_count = 8\r\n",
+        "communication_backend = 'NCCL'"
+      ],
+      "outputs": [],
+      "execution_count": 6,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564159146
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "datastore = ws.get_default_datastore()\r\n",
+        "out_dataset = Dataset.get_by_name(ws,name='Out_ViT_S6_e100')\r\n"
+      ],
+      "outputs": [],
+      "execution_count": 7,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564182297
+        }
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Inference - Linear"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from azureml.core import Experiment\r\n",
+        "experiment_name = 'exp_Inference_ViTS16'\r\n",
+        "Inference_experiment = Experiment(ws, name=experiment_name)\r\n",
+        "# create distributed config\r\n",
+        "distr_Inference_config = PyTorchConfiguration(communication_backend=communication_backend,process_count=process_count, node_count=node_count)\r\n",
+        "launch_cmd = [\"python -m torch.distributed.launch eval_linear.py --evaluate --pretrained_weights\",out_dataset.as_download() , \"--checkpoint_key teacher --data_path\", image_net_dataset.as_download(),\"--patch_size 16 --batch_size_per_gpu 64\"]\r\n",
+        "src_config_linear = ScriptRunConfig(\r\n",
+        "  source_directory=project_folder,\r\n",
+        "  command=launch_cmd,\r\n",
+        "  compute_target=compute_target,\r\n",
+        "  environment=dino_env,\r\n",
+        "  distributed_job_config=distr_Inference_config\r\n",
+        ")\r\n",
+        "runInferenceLinear = Inference_experiment.submit(src_config_linear)"
+      ],
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": "WARNING:root:You might see network latency and increased data transfer costs if you chose a cluster in a location different from the location of your workspace\nSubmitting /mnt/batch/tasks/shared/LS_root/mounts/clusters/ds3-4cores/code/Users/aghasemi/dino directory for run. The size of the directory >= 25 MB, so it can take a few minutes.\n"
+        }
+      ],
+      "execution_count": 9,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564264997
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from azureml.widgets import RunDetails\r\n",
+        "\r\n",
+        "RunDetails(runInferenceLinear).show()"
+      ],
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": "_UserRunWidget(widget_settings={'childWidgetDisplay': 'popup', 'send_telemetry': True, 'log_level': 'INFO', 's…",
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "77305f9c23964c109a3f3e93a942db3f"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "application/aml.mini.widget.v1": "{\"status\": \"Running\", \"workbench_run_details_uri\": \"https://ml.azure.com/runs/exp_Inference_ViTS16_1646564254_4998ec23?wsid=/subscriptions/63efeb32-5d2e-4ec7-860d-a4e6972dd9aa/resourcegroups/rg-ml-sg-dev/workspaces/ml-workspace-sg&tid=79462702-9804-489b-9471-b17c34c68474\", \"run_id\": \"exp_Inference_ViTS16_1646564254_4998ec23\", \"run_properties\": {\"run_id\": \"exp_Inference_ViTS16_1646564254_4998ec23\", \"created_utc\": \"2022-03-06T10:57:41.220269Z\", \"properties\": {\"_azureml.ComputeTargetType\": \"amlcompute\", \"ContentSnapshotId\": \"da40f5d5-bcdf-46a1-ac26-992542e2801c\", \"ProcessInfoFile\": \"azureml-logs/process_info.json\", \"ProcessStatusFile\": \"azureml-logs/process_status.json\", \"azureml.git.repository_uri\": \"https://github.com/afsghasemi/dino.git\", \"mlflow.source.git.repoURL\": \"https://github.com/afsghasemi/dino.git\", \"azureml.git.branch\": \"main\", \"mlflow.source.git.branch\": \"main\", \"azureml.git.commit\": \"2a85f2d21203617e810df67cf76a8a321220b4d0\", \"mlflow.source.git.commit\": \"2a85f2d21203617e810df67cf76a8a321220b4d0\", \"azureml.git.dirty\": \"True\"}, \"tags\": {\"_aml_system_ComputeTargetStatus\": \"{\\\"AllocationState\\\":\\\"steady\\\",\\\"PreparingNodeCount\\\":0,\\\"RunningNodeCount\\\":0,\\\"CurrentNodeCount\\\":0}\"}, \"script_name\": null, \"arguments\": null, \"end_time_utc\": null, \"status\": \"Running\", \"log_files\": {\"azureml-logs/55_azureml-execution-tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d.txt\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/azureml-logs/55_azureml-execution-tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d.txt?sv=2019-07-07&sr=b&sig=sXcP0JYlngMXqXXaR%2FpL%2BR0ww38LzejDjs%2BNAH6b4yI%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T08%3A35%3A56Z&ske=2022-03-07T16%3A45%3A56Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A12Z&se=2022-03-06T19%3A28%3A12Z&sp=r\", \"azureml-logs/65_job_prep-tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d.txt\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/azureml-logs/65_job_prep-tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d.txt?sv=2019-07-07&sr=b&sig=H30KKrtEIhGrfgPGchJdLOqjZsJwSIy%2FajpLKt3RyC8%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T08%3A35%3A56Z&ske=2022-03-07T16%3A45%3A56Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A12Z&se=2022-03-06T19%3A28%3A12Z&sp=r\", \"logs/azureml/dataprep/backgroundProcess.log\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/logs/azureml/dataprep/backgroundProcess.log?sv=2019-07-07&sr=b&sig=ROBkjlIpKeLeYqXhcwPPDidR5R3Imkg6HKUBwcWfhSU%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T07%3A34%3A38Z&ske=2022-03-07T15%3A44%3A38Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A45Z&se=2022-03-06T19%3A28%3A45Z&sp=r\", \"logs/azureml/dataprep/backgroundProcess_Telemetry.log\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/logs/azureml/dataprep/backgroundProcess_Telemetry.log?sv=2019-07-07&sr=b&sig=4Lk9rT1%2FmRxSpvyukX4xQFwmevLHCEs45cG3Q4MqBfM%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T07%3A34%3A38Z&ske=2022-03-07T15%3A44%3A38Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A45Z&se=2022-03-06T19%3A28%3A45Z&sp=r\", \"logs/azureml/job_prep_azureml.log\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/logs/azureml/job_prep_azureml.log?sv=2019-07-07&sr=b&sig=EIs2ezJICdUpHfHT4S5UAe%2FEs1jTzESm9EBRkScQ9Nc%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T07%3A34%3A38Z&ske=2022-03-07T15%3A44%3A38Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A45Z&se=2022-03-06T19%3A28%3A45Z&sp=r\", \"logs/azureml/sidecar/tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d/all.log\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/logs/azureml/sidecar/tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d/all.log?sv=2019-07-07&sr=b&sig=XCKywKxXTmC78uIvzxohUlIrN8vxQ4oQr0H2RWHriTk%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T07%3A34%3A38Z&ske=2022-03-07T15%3A44%3A38Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A45Z&se=2022-03-06T19%3A28%3A45Z&sp=r\", \"logs/azureml/sidecar/tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d/task.enter_contexts.log\": \"https://mlworkspacesg3314359311.blob.core.windows.net/azureml/ExperimentRun/dcid.exp_Inference_ViTS16_1646564254_4998ec23/logs/azureml/sidecar/tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d/task.enter_contexts.log?sv=2019-07-07&sr=b&sig=bh7jj9vlIEpEu0szqseJcIFNmwcjwBcbgbxtwMpYWzw%3D&skoid=fe0cb625-5283-400d-a4a5-f42095f28f1d&sktid=79462702-9804-489b-9471-b17c34c68474&skt=2022-03-06T07%3A34%3A38Z&ske=2022-03-07T15%3A44%3A38Z&sks=b&skv=2019-07-07&st=2022-03-06T11%3A18%3A45Z&se=2022-03-06T19%3A28%3A45Z&sp=r\"}, \"log_groups\": [[\"logs/azureml/dataprep/backgroundProcess.log\", \"logs/azureml/dataprep/backgroundProcess_Telemetry.log\", \"logs/azureml/job_prep_azureml.log\"], [\"logs/azureml/sidecar/tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d/all.log\", \"logs/azureml/sidecar/tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d/task.enter_contexts.log\"], [\"azureml-logs/55_azureml-execution-tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d.txt\"], [\"azureml-logs/65_job_prep-tvmps_9dc1991cbce26656ef17ca884ec21d1e7230e06a4d7833d792956b01f63a2840_d.txt\"]], \"run_duration\": \"0:31:37\", \"run_number\": \"1646564261\", \"run_queued_details\": {\"status\": \"Running\", \"details\": null}}, \"child_runs\": [], \"children_metrics\": {}, \"run_metrics\": [], \"run_logs\": \"[2022-03-06T11:11:37.809184] Entering job preparation.\\r\\n[2022-03-06T11:11:43.617108] Starting job preparation.\\r\\n[2022-03-06T11:11:43.617143] Extracting the control code.\\r\\n[2022-03-06T11:11:43.617408] Starting extract_project.\\r\\n[2022-03-06T11:11:43.617440] Starting to extract zip file.\\r\\n[2022-03-06T11:11:44.262530] Finished extracting zip file.\\r\\n[2022-03-06T11:11:44.265003] Using urllib.request Python 3.0 or later\\r\\n[2022-03-06T11:11:44.265035] Start fetching snapshots.\\r\\n[2022-03-06T11:11:44.265058] Start fetching snapshot.\\r\\nStarting the daemon thread to refresh tokens in background for process with pid = 67\\r\\n[2022-03-06T11:12:40.900250] Finished fetching snapshot.\\r\\n[2022-03-06T11:12:40.900324] Finished fetching snapshots.\\r\\n[2022-03-06T11:12:40.900331] Finished extract_project.\\r\\n[2022-03-06T11:12:40.900652] Finished fetching and extracting the control code.\\r\\n[2022-03-06T11:12:40.908119] Start run_history_prep.\\r\\n[2022-03-06T11:12:40.913754] Job preparation is complete.\\r\\n[2022-03-06T11:12:40.913920] Entering Data Context Managers in Sidecar\\r\\n[2022-03-06T11:12:40.914869] Running Sidecar prep cmd...\\r\\nFailure while loading azureml_run_type_providers. Failed to load entrypoint azureml.scriptrun = azureml.core.script_run:ScriptRun._from_run_dto with exception (azure-core 1.22.1 (/opt/miniconda/lib/python3.7/site-packages), Requirement.parse('azure-core<1.22')).\\r\\n[2022-03-06T11:12:41.132034] INFO azureml.sidecar.sidecar: Received task: enter_contexts. Running on Linux at /mnt/hostfs/mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/azureml/exp_Inference_ViTS16_1646564254_4998ec23\\r\\n[2022-03-06T11:12:41.132679] INFO azureml.sidecar.sidecar: Invoking \\\"enter_contexts\\\" task with Context Managers: {\\\"context_managers\\\": [\\\"Dataset:context_managers.Datasets\\\"]}\\r\\n[2022-03-06T11:12:41.229] Enter __enter__ of DatasetContextManager\\r\\n[2022-03-06T11:12:41.230] SDK version: azureml-core==1.38.0.post2 azureml-dataprep==2.27.0. Session id: 192659f7-111e-48b8-86ae-befb00d1c041. Run id: exp_Inference_ViTS16_1646564254_4998ec23.\\r\\n[2022-03-06T11:12:41.230] Processing 'input__529f86f3'.\\r\\n[2022-03-06T11:12:41.230] Mode: 'download'.\\r\\n[2022-03-06T11:12:41.230] Path on compute is specified: 'False'.\\r\\n[2022-03-06T11:12:43.955] Processing dataset FileDataset\\r\\n{\\r\\n  \\\"source\\\": [\\r\\n    \\\"('workspaceblobstore', 'Output_node1_ViTs_gpus8_bacthsize64')\\\"\\r\\n  ],\\r\\n  \\\"definition\\\": [\\r\\n    \\\"GetDatastoreFiles\\\"\\r\\n  ],\\r\\n  \\\"registration\\\": {\\r\\n    \\\"id\\\": \\\"529f86f3-01ec-4a02-ae8b-1f9fec5ef1aa\\\",\\r\\n    \\\"name\\\": \\\"Out_ViT_S6_e100\\\",\\r\\n    \\\"version\\\": 1,\\r\\n    \\\"workspace\\\": \\\"Workspace.create(name='ml-workspace-sg', subscription_id='63efeb32-5d2e-4ec7-860d-a4e6972dd9aa', resource_group='rg-ml-sg-dev')\\\"\\r\\n  }\\r\\n}\\r\\n[2022-03-06T11:12:43.956] Downloading input__529f86f3 to /mnt/hostfs/mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/input__529f86f3_529f86f3-01ec-4a02-ae8b-1f9fec5ef1aa. Overwrite is set to False\\r\\n[2022-03-06T11:13:05.241] Downloaded input__529f86f3 to /mnt/hostfs/mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/input__529f86f3_529f86f3-01ec-4a02-ae8b-1f9fec5ef1aa as folder.\\r\\n[2022-03-06T11:13:05.241] Processing 'input__45762f82'.\\r\\n[2022-03-06T11:13:05.241] Mode: 'download'.\\r\\n[2022-03-06T11:13:05.241] Path on compute is specified: 'False'.\\r\\n[2022-03-06T11:13:05.838] Processing dataset FileDataset\\r\\n{\\r\\n  \\\"source\\\": [\\r\\n    \\\"('imagenet_2015_we_datastore', 'CLS-LOC/**')\\\"\\r\\n  ],\\r\\n  \\\"definition\\\": [\\r\\n    \\\"GetDatastoreFiles\\\"\\r\\n  ],\\r\\n  \\\"registration\\\": {\\r\\n    \\\"id\\\": \\\"45762f82-6a7e-4fd5-ac16-1c6caec158d2\\\",\\r\\n    \\\"name\\\": \\\"imagenet_2015_premium_west_full\\\",\\r\\n    \\\"version\\\": 1,\\r\\n    \\\"workspace\\\": \\\"Workspace.create(name='ml-workspace-sg', subscription_id='63efeb32-5d2e-4ec7-860d-a4e6972dd9aa', resource_group='rg-ml-sg-dev')\\\"\\r\\n  }\\r\\n}\\r\\n[2022-03-06T11:13:05.838] Downloading input__45762f82 to /mnt/hostfs/mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/input__45762f82_45762f82-6a7e-4fd5-ac16-1c6caec158d2. Overwrite is set to False\\r\\n[2022-03-06T11:23:16.808] Downloaded input__45762f82 to /mnt/hostfs/mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/input__45762f82_45762f82-6a7e-4fd5-ac16-1c6caec158d2 as folder.\\r\\n[2022-03-06T11:23:17.051] Exit __enter__ of DatasetContextManager\\r\\nuri entered in sidecar: None\\r\\nSet Dataset input__529f86f3's target path to /mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/input__529f86f3_529f86f3-01ec-4a02-ae8b-1f9fec5ef1aa\\r\\nuri entered in sidecar: None\\r\\nSet Dataset input__45762f82's target path to /mnt/batch/tasks/shared/LS_root/jobs/ml-workspace-sg/azureml/exp_inference_vits16_1646564254_4998ec23/wd/input__45762f82_45762f82-6a7e-4fd5-ac16-1c6caec158d2\\r\\n[2022-03-06T11:23:17.052368] INFO azureml.sidecar.task.enter_contexts: Entered Context Managers\\r\\n[2022-03-06T11:23:17.788245] Ran Sidecar prep cmd.\\r\\n[2022-03-06T11:23:17.788321] Running Context Managers in Sidecar complete.\\r\\n\", \"graph\": {}, \"widget_settings\": {\"childWidgetDisplay\": \"popup\", \"send_telemetry\": true, \"log_level\": \"INFO\", \"sdk_version\": \"1.38.0\"}, \"loading\": false}"
+          },
+          "metadata": {}
+        }
+      ],
+      "execution_count": 10,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1646564289702
+        }
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Visualise attention"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "%run visualize_attention --pretrained_weights 'checkpoint.pth' --checkpoint_key 'teacher' --image_path 'img.png' --patch_size 16"
+      ],
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import matplotlib.pyplot as plt\r\n",
+        "fig = plt.figure(figsize=(15, 5))\r\n",
+        "fig.add_subplot(1, 1, 1)\r\n",
+        "img = plt.imread('img.png')\r\n",
+        "plt.imshow(img)\r\n",
+        "fig.add_subplot(1, 2, 1)\r\n",
+        "attn = plt.imread('attn-head0.png')\r\n",
+        "plt.imshow(attn)\r\n",
+        "plt.show()"
+      ],
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "name": "python3-azureml",
+      "language": "python",
+      "display_name": "Python 3.6 - AzureML"
+    },
+    "language_info": {
+      "name": "python",
+      "version": "3.6.9",
+      "mimetype": "text/x-python",
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "pygments_lexer": "ipython3",
+      "nbconvert_exporter": "python",
+      "file_extension": ".py"
+    },
+    "kernel_info": {
+      "name": "python3-azureml"
+    },
+    "microsoft": {
+      "host": {
+        "AzureML": {
+          "notebookHasBeenCompleted": true
+        }
+      }
+    },
+    "nteract": {
+      "version": "nteract-front-end@1.0.0"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 2
+}

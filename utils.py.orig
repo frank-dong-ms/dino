@@ -70,8 +70,11 @@ class Solarization(object):
             return img
 
 
-
+<<<<<<< HEAD
+def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size):
+=======
 def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size):    
+>>>>>>> refs/remotes/origin/inference
     pretrained_weights=os.path.join(pretrained_weights, "checkpoint.pth")
     #if os.path.isfile(pretrained_weights):
     state_dict = torch.load(pretrained_weights, map_location="cpu")
